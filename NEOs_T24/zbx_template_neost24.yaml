@@ -1,0 +1,440 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: adf386cf84034ee2b6f20fe6a36cc74e
+      template: 'Template SNMP NEOs-T24_T48'
+      name: 'Template SNMP NEOs-T24_T48'
+      templates:
+        -
+          name: 'Template App SNMP Agent'
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: 894a3c9e589f4d9bad21b582d1227985
+          name: 'bDT Description'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.1.2.0
+          key: bdt.agent.description
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'A short description of this agent .'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 9b4252b319254e70a36d006de16b1b70
+          name: 'bDT Displayname'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.1.1.0
+          key: bdt.agent.name
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Name of this agent for display purposes.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: ae1b70dc30fd47b6baded361f205a2d8
+          name: 'bDT Agent Vendor'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.1.3.0
+          key: bdt.agent.vendor
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'The name of the agent software manufacturer.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: ab8727b1832a4a4c9e934f00306e4632
+          name: 'bDT Agent Version'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.1.4.0
+          key: bdt.agent.version
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'The version of this SNMP agent software.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 3cdd07cf077f40f4967366ebb990cfc6
+          name: 'bDT Bootcode'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.6.0
+          key: bdt.device.bootcode
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Bootcode Revision.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 8d2f5d6780c949e0ad673cf2be9ae7f2
+          name: 'bDT Firmware'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.4.0
+          key: bdt.device.firmware
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Firmware Revision.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: aecc16e2663a41b68e65d5d9f9e5a253
+          name: 'BDTMIB::bDTDevRobFirmwareRev'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.5.0
+          key: bdt.device.firmware.rob
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Robotic Firmware Revision.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 9d8407fc77ca47038139700e513a1425
+          name: 'bDT ProductID'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.3.0
+          key: bdt.device.product
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Product ID.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: c35fa6cc08ce4f97948f8a74c3e80e9d
+          name: 'bDT SerialNumber'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.1.0
+          key: bdt.device.serialnumber
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Serial Number.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 3a0dc9604b74428588c90e1de0d68828
+          name: 'BDTMIB::bDTDevVendorID'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.4.2.0
+          key: bdt.device.vendor
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Device Vendor ID.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: f88ff0f259374f3dbfde6d01b50dc664
+          name: 'BDTMIB::bDTDriveNumber'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.3.13.0
+          key: bdt.drive.number
+          history: 4w
+          value_type: FLOAT
+          description: 'Drive Number.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: ed95c189e84a4c84a8fc411a8674204a
+          name: 'BDTMIB::bDTErrorCode'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.5.0
+          key: bdt.error.code
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Error Code.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 75d432f85d1a4009bc4322a3e1a7e16f
+          name: 'BDTMIB::bDTErrorData'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.9.0
+          key: bdt.error.data
+          history: 4w
+          trends: '0'
+          value_type: TEXT
+          description: 'Error Data.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED
+              parameters:
+                - ''
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 5c28659726c0484e84e470e10495cb47
+          name: 'BDTMIB::bDTMagNumber'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.3.14.0
+          key: bdt.mag
+          history: 4w
+          value_type: FLOAT
+          description: 'Drive Number.'
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 3749bc84e4154826891495f1a23ba711
+          name: 'BDTMIB::bDTRefreshRate'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.6.0
+          key: bdt.refresh
+          history: 4w
+          value_type: FLOAT
+          description: |
+            Rate in milliseconds at which the agent cached data is being updated. If the
+             value is 0 then the data is not cached. If the value is -1 then the value does
+             not apply.
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 76e05c377f2a4bab8f1f7aaa29c9afda
+          name: 'BDTMIB::bDTGlobalStatus'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.1.0
+          key: bdt.status
+          history: 4w
+          value_type: FLOAT
+          description: |
+            Current status of the agent for this server. 
+             This is a rollup for the entire agent including any 
+             monitored devices. The status is intended to give 
+             initiative to a snmp monitor to get further data when 
+             this status is abnormal.
+          valuemap:
+            name: Status
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+          triggers:
+            -
+              uuid: 1914d137da074809aea6e0b63bf01767
+              expression: 'last(/Template SNMP NEOs-T24_T48/bdt.status)=5'
+              name: 'Global Status is Critical'
+              priority: HIGH
+            -
+              uuid: 210282d789844652a85d590a368eefac
+              expression: 'last(/Template SNMP NEOs-T24_T48/bdt.status)<>3'
+              name: 'Global Status is not OK'
+              priority: WARNING
+              dependencies:
+                -
+                  name: 'Global Status is Critical'
+                  expression: 'last(/Template SNMP NEOs-T24_T48/bdt.status)=5'
+                -
+                  name: 'Global Status is Unrecoverable'
+                  expression: 'last(/Template SNMP NEOs-T24_T48/bdt.status)=6'
+            -
+              uuid: a5c48ef8e77f46a299223d785897ff47
+              expression: 'last(/Template SNMP NEOs-T24_T48/bdt.status)=6'
+              name: 'Global Status is Unrecoverable'
+              priority: DISASTER
+        -
+          uuid: 58c121849fb54e169058d7f7704602de
+          name: 'BDTMIB::bDTLastGlobalStatus'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.2.0
+          key: bdt.status.last
+          history: 4w
+          value_type: FLOAT
+          description: |
+            The status before the current status which induced an initiative 
+             to issue a global status change trap.
+          valuemap:
+            name: Status
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 468867c3dc484615ba4cd0b9d9e40db1
+          name: 'BDTMIB::bDTGetTimeOut'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.4.0
+          key: bdt.timeout
+          history: 4w
+          value_type: FLOAT
+          description: |
+            Suggested time out value in milleseconds for how long the SNMP getter
+             should wait while attempting to poll the SNMP agent.
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+        -
+          uuid: 7fb23d4a71e641649a4a5c8c74729170
+          name: 'BDTMIB::bDTTimeStamp'
+          type: SNMP_AGENT
+          snmp_oid: .1.3.6.1.4.1.20884.10893.2.101.2.3.0
+          key: bdt.timestamp
+          history: 4w
+          value_type: FLOAT
+          description: |
+            The last time that the agent values have been updated.
+             Universal time in sec since UTC 1/1/70.
+          preprocessing:
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            -
+              tag: Application
+              value: NEOs-T24_T48
+      macros:
+        -
+          macro: '{$SNMP_PORT}'
+          value: '161'
+      valuemaps:
+        -
+          uuid: f5006fd714ab4604ba4c824ba7a7bcb1
+          name: Status
+          mappings:
+            -
+              value: '1'
+              newvalue: Other
+            -
+              value: '2'
+              newvalue: Unknown
+            -
+              value: '3'
+              newvalue: OK
+            -
+              value: '4'
+              newvalue: non-Critical
+            -
+              value: '5'
+              newvalue: Critical
+            -
+              value: '6'
+              newvalue: non-Recoverable
