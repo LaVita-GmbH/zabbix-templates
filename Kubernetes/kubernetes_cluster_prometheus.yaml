@@ -1,0 +1,219 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    -
+      uuid: 7039e6a9ad064936b5b4f0fce719ad87
+      name: Templates/Kubernetes
+  templates:
+    -
+      uuid: a34400b258804576a39999d56e43666b
+      template: 'Kubernetes cluster state by HTTP with Prometheus API'
+      name: 'Kubernetes cluster state by HTTP with Prometheus API'
+      templates:
+        -
+          name: 'Kubernetes cluster state by HTTP'
+      groups:
+        -
+          name: Templates/Kubernetes
+      items:
+        -
+          uuid: 70d4a8ba70db4bebb6a30981ca6734be
+          name: 'Prometheus: PVC Available Bytes'
+          type: HTTP_AGENT
+          key: prometheus.pvc.avail.all
+          delay: '10'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value)
+                  
+                  if (data.status != 'success') {
+                      return null
+                  }
+                  
+                  out = {}
+                  
+                  result = data.data.result
+                  
+                  for (val = 0; val < result.length; val++) {
+                      const e = result[val];
+                      if (!out[e.metric.namespace]) {
+                          out[e.metric.namespace] = {}
+                      }
+                      out[e.metric.namespace][e.metric.persistentvolumeclaim] = e.value[1]
+                  }
+                  
+                  return JSON.stringify(out)
+                  
+          url: '{$PROMETHEUS.URL}/api/v1/query'
+          query_fields:
+            -
+              name: query
+              value: kubelet_volume_stats_available_bytes
+          tags:
+            -
+              tag: component
+              value: pvc
+      discovery_rules:
+        -
+          uuid: 08ecabff2c74407faa3d93c2c4fdc3cf
+          name: 'PVC discovery'
+          type: DEPENDENT
+          key: prometheus.pvc.discovery
+          delay: '0'
+          filter:
+            evaltype: AND
+          lifetime: '0'
+          item_prototypes:
+            -
+              uuid: 5fc578abf7374e97a5be13b94d0bee37
+              name: 'Prometheus: [{#NAMESPACE}/{#NAME}] Available storage'
+              type: DEPENDENT
+              key: 'prometheus.pvc.avail[{#NAMESPACE}/{#NAME}]'
+              delay: '0'
+              history: 6h
+              trends: 14d
+              units: B
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      data = JSON.parse(value)
+                      return data['{#NAMESPACE}']['{#NAME}'] // {#NAME} can contain '-', which breaks JSONPath
+                -
+                  type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
+              master_item:
+                key: prometheus.pvc.avail.all
+              tags:
+                -
+                  tag: component
+                  value: pvc
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pvc
+                  value: '{#NAME}'
+            -
+              uuid: 36dbc2fc90bc48a28c2c0577ac70a899
+              name: 'Prometheus: [{#NAMESPACE}/{#NAME}] Used storage (%)'
+              type: CALCULATED
+              key: 'prometheus.pvc.used[{#NAMESPACE}/{#NAME}]'
+              history: 14d
+              value_type: FLOAT
+              units: '%'
+              params: |
+                (
+                    (
+                        last(//kube.pvc.requested.storage[{#NAMESPACE}/{#NAME}])
+                        - last(//prometheus.pvc.avail[{#NAMESPACE}/{#NAME}])
+                    )
+                    / last(//kube.pvc.requested.storage[{#NAMESPACE}/{#NAME}])
+                ) * 100
+              tags:
+                -
+                  tag: component
+                  value: pvc
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pvc
+                  value: '{#NAME}'
+              trigger_prototypes:
+                -
+                  uuid: b7b739f80e984b81b37b9c9fe5d447f1
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>99'
+                  name: '[{#NAMESPACE}] PVC Usage {#NAME} is almost full'
+                  priority: DISASTER
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 95%'
+                      expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                  tags:
+                    -
+                      tag: component
+                      value: pvc
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pvc
+                      value: '{#NAME}'
+                -
+                  uuid: 46ed8a3ec3dd4bbdae32a4bf6a4b8eeb
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                  name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 90%'
+                  priority: AVERAGE
+                  tags:
+                    -
+                      tag: component
+                      value: pvc
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pvc
+                      value: '{#NAME}'
+                -
+                  uuid: dbcde5d97ed7407c88d5198a3a670e9c
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                  name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 95%'
+                  priority: HIGH
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 90%'
+                      expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                  tags:
+                    -
+                      tag: component
+                      value: pvc
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pvc
+                      value: '{#NAME}'
+          master_item:
+            key: prometheus.pvc.avail.all
+          lld_macro_paths:
+            -
+              lld_macro: '{#NAME}'
+              path: $.name
+            -
+              lld_macro: '{#NAMESPACE}'
+              path: $.ns
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+                  keys = Object.keys(data);
+                  
+                  var output = [];
+                  for (var ns in data) {
+                      for (var name in data[ns]) {
+                          output.push({
+                              "ns": ns,
+                              "name": name
+                          });
+                      }
+                  }
+                  return JSON.stringify(output);
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+      macros:
+        -
+          macro: '{$PROMETHEUS.URL}'
+          value: 'http://prometheus-server.prometheus.svc.cluster.local:80'
