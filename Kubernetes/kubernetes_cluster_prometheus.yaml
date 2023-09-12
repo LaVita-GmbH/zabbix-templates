@@ -49,7 +49,6 @@ zabbix_export:
                   }
                   
                   return JSON.stringify(out)
-                  
           url: '{$PROMETHEUS.URL}/api/v1/query'
           query_fields:
             -
@@ -59,6 +58,58 @@ zabbix_export:
             -
               tag: component
               value: pvc
+        -
+          uuid: 25a0fd54062a490fb7f98d5d8c30654b
+          name: 'Prometheus: number of found PVCs'
+          type: DEPENDENT
+          key: prometheus.pvc.count
+          delay: '0'
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+                  var count = 0;
+                  for (var ns in data) {
+                      for (var pvc in data[ns]) {
+                          count++;
+                      }
+                  }
+                  return count;
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 24h
+          master_item:
+            key: prometheus.pvc.avail.all
+          tags:
+            -
+              tag: component
+              value: pvc
+          triggers:
+            -
+              uuid: abe0aa1858f14188885bbde14ec42b04
+              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)>0 and last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)=0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)>0'
+              name: 'no PVCs found anymore'
+              priority: DISASTER
+              dependencies:
+                -
+                  name: 'number of PVCs decreased'
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
+            -
+              uuid: f8d1b9231ace4473aa732e0e9a391874
+              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
+              recovery_mode: NONE
+              name: 'number of PVCs decreased'
+              priority: HIGH
+              manual_close: 'YES'
+              tags:
+                -
+                  tag: component
+                  value: pvc
       discovery_rules:
         -
           uuid: 08ecabff2c74407faa3d93c2c4fdc3cf
@@ -68,7 +119,7 @@ zabbix_export:
           delay: '0'
           filter:
             evaltype: AND
-          lifetime: '0'
+          lifetime: 24h
           item_prototypes:
             -
               uuid: 5fc578abf7374e97a5be13b94d0bee37
