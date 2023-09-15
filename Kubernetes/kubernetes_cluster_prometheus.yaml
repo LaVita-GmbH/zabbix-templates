@@ -95,18 +95,17 @@ zabbix_export:
               recovery_expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)>0'
               name: 'no PVCs found anymore'
               priority: DISASTER
+              dependencies:
+                -
+                  name: 'number of PVCs decreased'
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
             -
               uuid: f8d1b9231ace4473aa732e0e9a391874
-              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)>last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
+              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
               recovery_mode: NONE
               name: 'number of PVCs decreased'
               priority: HIGH
               manual_close: 'YES'
-              dependencies:
-                -
-                  name: 'no PVCs found anymore'
-                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)>0 and last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)=0'
-                  recovery_expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)>0'
               tags:
                 -
                   tag: component

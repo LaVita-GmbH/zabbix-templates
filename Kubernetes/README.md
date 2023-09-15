@@ -5,6 +5,7 @@ This Template extends the [Kubernetes cluster state by HTTP](https://git.zabbix.
 
 ## Features
 - Monitoring of PVC Usage with triggers at >90%, >95% and >99%
+- Triggers if count of PVCs decrease
 
 ## Requirements
 - Kubernetes cluster with Prometheus Server  
