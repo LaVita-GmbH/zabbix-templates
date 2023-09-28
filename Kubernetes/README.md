@@ -23,7 +23,7 @@ This Template extends the [Kubernetes cluster state by HTTP](https://git.zabbix.
 
 ## Installation
 1. install a Prometheus Server with the [Prometheus Helm Chart](https://prometheus-community.github.io/helm-charts) (if you don't have one already)  
-  For CPU monitoring you need to add the contents of alerting-rules.yaml to `serverFiles.alerting_rules.yml` in the values.yaml of the helm chart.
+  For CPU monitoring you need to add the contents of alerting-rules.yaml to the key `serverFiles.alerting_rules.yml` in the values.yaml of the helm chart.
 2. Follow the [Zabbix Kubernetes Template](https://www.zabbix.com/integrations/kubernetes) installation instructions
 3. Import the template `kubernetes_state_prometheus.xml` into Zabbix
 4. _Switch_ the template `Template App Kubernetes State by HTTP` to `Template App Kubernetes State by HTTP with Prometheus` on the Dummy Server
