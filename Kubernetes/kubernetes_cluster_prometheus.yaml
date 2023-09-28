@@ -17,6 +17,98 @@ zabbix_export:
           name: Templates/Kubernetes
       items:
         -
+          uuid: a4608a33fbff420c83cf9abbbd310507
+          name: 'Prometheus: Pod CPU usage'
+          type: HTTP_AGENT
+          key: prometheus.pod.usage.cpu.all
+          delay: '10'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value)
+                  
+                  if (data.status != 'success') {
+                      return null
+                  }
+                  
+                  out = {}
+                  
+                  result = data.data.result
+                  
+                  for (val = 0; val < result.length; val++) {
+                      const e = result[val];
+                      if (!out[e.metric.namespace]) {
+                          out[e.metric.namespace] = {}
+                      }
+                      out[e.metric.namespace][e.metric.pod] = e.value[1]
+                  }
+                  
+                  return JSON.stringify(out)
+          url: '{$PROMETHEUS.URL}/api/v1/query'
+          query_fields:
+            -
+              name: query
+              value: 'sum(node_namespace_pod_container:container_cpu_usage_seconds_total:sum_irate) by (namespace, pod)'
+          status_codes: ''
+          tags:
+            -
+              tag: component
+              value: pod
+            -
+              tag: metric
+              value: cpu
+        -
+          uuid: 12260eb6607f4dc5937a9e6e8af5e6ca
+          name: 'Prometheus: Pod Memory usage'
+          type: HTTP_AGENT
+          key: prometheus.pod.usage.memory.all
+          delay: '10'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value)
+                  
+                  if (data.status != 'success') {
+                      return null
+                  }
+                  
+                  out = {}
+                  
+                  result = data.data.result
+                  
+                  for (val = 0; val < result.length; val++) {
+                      const e = result[val];
+                      if (!out[e.metric.namespace]) {
+                          out[e.metric.namespace] = {}
+                      }
+                      out[e.metric.namespace][e.metric.pod] = e.value[1]
+                  }
+                  
+                  return JSON.stringify(out)
+          url: '{$PROMETHEUS.URL}/api/v1/query'
+          query_fields:
+            -
+              name: query
+              value: 'sum(container_memory_usage_bytes{container=~".+"}) by (namespace, pod)'
+          status_codes: ''
+          tags:
+            -
+              tag: component
+              value: pod
+            -
+              tag: metric
+              value: memory
+        -
           uuid: 70d4a8ba70db4bebb6a30981ca6734be
           name: 'Prometheus: PVC Available Bytes'
           type: HTTP_AGENT
@@ -95,22 +187,509 @@ zabbix_export:
               recovery_expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)>0'
               name: 'no PVCs found anymore'
               priority: DISASTER
-              dependencies:
-                -
-                  name: 'number of PVCs decreased'
-                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
             -
               uuid: f8d1b9231ace4473aa732e0e9a391874
-              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)<last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
+              expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)>last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)'
               recovery_mode: NONE
               name: 'number of PVCs decreased'
               priority: HIGH
               manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'no PVCs found anymore'
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count,#1)>0 and last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)=0'
+                  recovery_expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.count)>0'
               tags:
                 -
                   tag: component
                   value: pvc
       discovery_rules:
+        -
+          uuid: 7c780659730e4357b3ed3e365644c2ed
+          name: 'Pod discovery'
+          type: DEPENDENT
+          key: prometheus.pod.discovery
+          delay: '0'
+          filter:
+            evaltype: AND
+          lifetime: 24h
+          item_prototypes:
+            -
+              uuid: 04db84d9b3cf40668aca8234dc3938ef
+              name: 'Prometheus: [{#NAMESPACE}] CPU percentage of limit {#NAME}'
+              type: CALCULATED
+              key: 'prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}]'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: '%'
+              params: |
+                (
+                    last(//prometheus.pod.usage.cpu[{#NAMESPACE}/{#NAME}])
+                    / last(//kube.pod.containers.limits.cpu[{#NAMESPACE}/{#NAME}])
+                ) * 100
+              preprocessing:
+                -
+                  type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: cpu
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+              trigger_prototypes:
+                -
+                  uuid: ebdec392a29946228700fe9dce7dd21d
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],1h)>99'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],30m)<95'
+                  name: '[{#NAMESPACE}] Pod {#NAME} CPU usage is extremely high'
+                  priority: HIGH
+                  manual_close: 'YES'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: cpu
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: 4a1f1e2d2aa54d6da7968714daeb9650
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],3h)>90'
+                  name: '[{#NAMESPACE}] Pod {#NAME} CPU usage is high'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is very high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],2h)>95'
+                      recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],20m)<90'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: cpu
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: 6c783758127440a593c240680e08c14a
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],2h)>95'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],20m)<90'
+                  name: '[{#NAMESPACE}] Pod {#NAME} CPU usage is very high'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} CPU usage is extremely high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],1h)>99'
+                      recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],30m)<95'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: cpu
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+            -
+              uuid: 908c49bc7d9e42449d4c2723785dc586
+              name: 'Prometheus: [{#NAMESPACE}] Memory percentage of limit {#NAME}'
+              type: CALCULATED
+              key: 'prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}]'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: '%'
+              params: |
+                (
+                    last(//prometheus.pod.usage.memory[{#NAMESPACE}/{#NAME}])
+                    / last(//kube.pod.containers.limits.memory[{#NAMESPACE}/{#NAME}])
+                ) * 100
+              preprocessing:
+                -
+                  type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: cpu
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+              trigger_prototypes:
+                -
+                  uuid: 2f82dc2645f14e2d849f42cfcb1dfec2
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],1h)>99'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],30m)<95'
+                  name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is extremely high'
+                  priority: HIGH
+                  manual_close: 'YES'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: memory
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: 554a32866f994f21b98f0de75fa13d78
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],3h)>90'
+                  name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is high'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is very high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],2h)>95'
+                      recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],20m)<90'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: memory
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: c09b263d59e542da81e5003680ea58d4
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],2h)>95'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],20m)<90'
+                  name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is very high'
+                  priority: AVERAGE
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is extremely high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],1h)>99'
+                      recovery_expression: 'max(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],30m)<95'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: memory
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+            -
+              uuid: d91ab7a4484d4d738aadb886cdf768d7
+              name: 'Prometheus: [{#NAMESPACE}] CPU percentage of request of Pod {#NAME}'
+              type: CALCULATED
+              key: 'prometheus.pod.requests.cpu.percent[{#NAMESPACE}/{#NAME}]'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: '%'
+              params: |
+                (
+                    last(//prometheus.pod.usage.cpu[{#NAMESPACE}/{#NAME}])
+                    / last(//kube.pod.containers.requests.cpu[{#NAMESPACE}/{#NAME}])
+                ) * 100
+              preprocessing:
+                -
+                  type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: cpu
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+              trigger_prototypes:
+                -
+                  uuid: 54ec395ddb0b460dbfaa76107a364ce9
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.requests.cpu.percent[{#NAMESPACE}/{#NAME}],12h)>120'
+                  name: '[{#NAMESPACE}] Pod {#NAME} CPU is higher than request'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} CPU usage is high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.cpu.percent[{#NAMESPACE}/{#NAME}],3h)>90'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: cpu
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: c9d6b4048ae541c1ae517b672a3b031f
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.requests.cpu.percent[{#NAMESPACE}/{#NAME}],12h)<80'
+                  name: '[{#NAMESPACE}] Pod {#NAME} CPU is lower than request'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: cpu
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+            -
+              uuid: b254e7821deb48ae93d8ac3fe00a71e2
+              name: 'Prometheus: [{#NAMESPACE}] Memory percentage of request of Pod {#NAME}'
+              type: CALCULATED
+              key: 'prometheus.pod.requests.memory.percent[{#NAMESPACE}/{#NAME}]'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: '%'
+              params: |
+                (
+                    last(//prometheus.pod.usage.memory[{#NAMESPACE}/{#NAME}])
+                    / last(//kube.pod.containers.requests.memory[{#NAMESPACE}/{#NAME}])
+                ) * 100
+              preprocessing:
+                -
+                  type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: memory
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+              trigger_prototypes:
+                -
+                  uuid: 703f7f496be2466eabc64b6e319099ee
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.requests.memory.percent[{#NAMESPACE}/{#NAME}],12h)>120'
+                  name: '[{#NAMESPACE}] Pod {#NAME} Memory is higher than request'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  dependencies:
+                    -
+                      name: '[{#NAMESPACE}] Pod {#NAME} Memory usage is high'
+                      expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.limits.memory.percent[{#NAMESPACE}/{#NAME}],3h)>90'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: memory
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+                -
+                  uuid: 2ee6c6c493544d0eb8efeec81ababf1f
+                  expression: 'avg(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pod.requests.memory.percent[{#NAMESPACE}/{#NAME}],12h)<80'
+                  name: '[{#NAMESPACE}] Pod {#NAME} Memory is lower than request'
+                  priority: WARNING
+                  manual_close: 'YES'
+                  tags:
+                    -
+                      tag: component
+                      value: pod
+                    -
+                      tag: metric
+                      value: memory
+                    -
+                      tag: namespace
+                      value: '{#NAMESPACE}'
+                    -
+                      tag: pod
+                      value: '{#NAME}'
+            -
+              uuid: 92ef10216a274705a629da2561bff2e7
+              name: 'Prometheus: [{#NAMESPACE}] CPU Usage of Pod {#NAME}'
+              type: DEPENDENT
+              key: 'prometheus.pod.usage.cpu[{#NAMESPACE}/{#NAME}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      data = JSON.parse(value)
+                      return data['{#NAMESPACE}']['{#NAME}'] // {#NAME} can contain '-', which breaks JSONPath
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: prometheus.pod.usage.cpu.all
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: cpu
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+            -
+              uuid: 2d894c80ffd44e1686830fe1efdeceec
+              name: 'Prometheus: [{#NAMESPACE}] Memory Usage of Pod {#NAME}'
+              type: DEPENDENT
+              key: 'prometheus.pod.usage.memory[{#NAMESPACE}/{#NAME}]'
+              delay: '0'
+              history: 7d
+              trends: 30d
+              value_type: FLOAT
+              units: B
+              preprocessing:
+                -
+                  type: JAVASCRIPT
+                  parameters:
+                    - |
+                      data = JSON.parse(value)
+                      return data['{#NAMESPACE}']['{#NAME}'] // {#NAME} can contain '-', which breaks JSONPath
+                -
+                  type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1h
+              master_item:
+                key: prometheus.pod.usage.memory.all
+              tags:
+                -
+                  tag: component
+                  value: pod
+                -
+                  tag: metric
+                  value: cpu
+                -
+                  tag: namespace
+                  value: '{#NAMESPACE}'
+                -
+                  tag: pod
+                  value: '{#NAME}'
+          master_item:
+            key: prometheus.pod.usage.cpu.all
+          lld_macro_paths:
+            -
+              lld_macro: '{#NAME}'
+              path: $.name
+            -
+              lld_macro: '{#NAMESPACE}'
+              path: $.ns
+          preprocessing:
+            -
+              type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+                  keys = Object.keys(data);
+                  
+                  var output = [];
+                  for (var ns in data) {
+                      for (var name in data[ns]) {
+                          output.push({
+                              "ns": ns,
+                              "name": name
+                          });
+                      }
+                  }
+                  return JSON.stringify(output);
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
         -
           uuid: 08ecabff2c74407faa3d93c2c4fdc3cf
           name: 'PVC discovery'
@@ -169,6 +748,17 @@ zabbix_export:
                     )
                     / last(//kube.pvc.requested.storage[{#NAMESPACE}/{#NAME}])
                 ) * 100
+              preprocessing:
+                -
+                  type: CHECK_NOT_SUPPORTED
+                  parameters:
+                    - ''
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                -
+                  type: DISCARD_UNCHANGED
+                  parameters:
+                    - ''
               tags:
                 -
                   tag: component
@@ -203,7 +793,7 @@ zabbix_export:
                   dependencies:
                     -
                       name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 95%'
-                      expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                      expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>95'
                   tags:
                     -
                       tag: component
@@ -216,7 +806,7 @@ zabbix_export:
                       value: '{#NAME}'
                 -
                   uuid: dbcde5d97ed7407c88d5198a3a670e9c
-                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>90'
+                  expression: 'last(/Kubernetes cluster state by HTTP with Prometheus API/prometheus.pvc.used[{#NAMESPACE}/{#NAME}])>95'
                   name: '[{#NAMESPACE}] PVC Usage {#NAME} is higher than 95%'
                   priority: HIGH
                   dependencies:
