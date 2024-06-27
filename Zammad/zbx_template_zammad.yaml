@@ -1,0 +1,116 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: c2cda1e99b084ad4952fca60b92505b1
+      template: 'Template Zammad Ticketsystem'
+      name: 'Zammad Ticketsystem'
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 3051234e906d441390c6339ee9f0e95d
+          name: 'Health Check'
+          type: HTTP_AGENT
+          key: zammad.health
+          delay: 10s
+          history: 7d
+          trends: '0'
+          value_type: TEXT
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 7d
+          url: 'https://{HOST.HOST}/api/v1/monitoring/health_check'
+          query_fields:
+            - name: token
+              value: '{$MONITORING}'
+        - uuid: 29c0441ac856434e97cf15ed8002f2dd
+          name: 'Health Status'
+          type: DEPENDENT
+          key: zammad.health.status
+          delay: '0'
+          trends: '0'
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - 'return JSON.parse(value)[''healthy''] ? 0 : 1'
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: zammad.health
+          triggers:
+            - uuid: 74c024e5754a4d0cb69bc430e113416d
+              expression: 'min(/Template Zammad Ticketsystem/zammad.health.status,5m)>0'
+              name: 'Health Status is not 0'
+              priority: AVERAGE
+              description: 'https://{HOST.HOST}/#system/monitoring'
+              dependencies:
+                - name: 'Health Status is not 0'
+                  expression: 'min(/Template Zammad Ticketsystem/zammad.health.status,10m)>0'
+            - uuid: 6d0c4a672ac74ec89b624d03f5b073b6
+              expression: 'min(/Template Zammad Ticketsystem/zammad.health.status,10m)>0'
+              name: 'Health Status is not 0'
+              priority: HIGH
+              description: 'https://{HOST.HOST}/#system/monitoring'
+        - uuid: 39c006d5189147d7bd0032219943b24e
+          name: 'Number of Tickets in discovered Views'
+          type: CALCULATED
+          key: zammad.tickets.views.all.count
+          delay: 10m
+          history: 30d
+          trends: 180d
+          params: 'sum(last_foreach(//zammad.tickets.views.count[*]))'
+      discovery_rules:
+        - uuid: 038a80a8585541608c16528da5a0abe7
+          name: 'Ticket View Discovery'
+          type: HTTP_AGENT
+          key: zammad.tickets.views
+          delay: 10m
+          item_prototypes:
+            - uuid: 27e90dc26f3343828e42b4898c052097
+              name: 'Number of Tickets in View {#NAME}'
+              type: DEPENDENT
+              key: 'zammad.tickets.views.count[{#LINK}]'
+              delay: '0'
+              history: 7d
+              trends: 90d
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.index.count
+              master_item:
+                key: 'zammad.tickets.views[{#LINK}]'
+              tags:
+                - tag: Application
+                  value: 'Zammad Ticketsystem'
+            - uuid: 492b0ce1de30426ca579826eda268f6b
+              name: 'Ticket View {#NAME}'
+              type: HTTP_AGENT
+              key: 'zammad.tickets.views[{#LINK}]'
+              delay: 2m
+              history: '0'
+              trends: '0'
+              value_type: TEXT
+              timeout: 5s
+              url: 'https://{HOST.IP}/api/v1/ticket_overviews'
+              query_fields:
+                - name: view
+                  value: '{#LINK}'
+              headers:
+                - name: Authorization
+                  value: 'Bearer {$TOKEN}'
+          url: 'https://{HOST.IP}/api/v1/ticket_overviews'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$TOKEN}'
+          lld_macro_paths:
+            - lld_macro: '{#LINK}'
+              path: $.link
+            - lld_macro: '{#NAME}'
+              path: $.name
+      macros:
+        - macro: '{$TOKEN}'
+          value: API_TOKEN
