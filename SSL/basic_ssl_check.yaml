@@ -1,0 +1,114 @@
+zabbix_export:
+  version: "6.4"
+  template_groups:
+    - uuid: a571c0d144b14fd4a87a9d9b2aa9fcd6
+      name: Templates/Applications
+  templates:
+    - uuid: 60b82a281c224a1397ee755baa44248a
+      template: "Template Basic SSL Cert Check"
+      name: "Template Basic SSL Cert Check"
+      groups:
+        - name: Templates/Applications
+      items:
+        - uuid: 5cc9fee964d449e3aaba7caf058ce8ff
+          name: "Certificate Expire Date"
+          type: DEPENDENT
+          key: "certcheck.sh.date[{HOST.NAME},{$SSL_PORT}]"
+          delay: "0"
+          history: 1d
+          trends: "0"
+          value_type: CHAR
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var date = new Date(Number(value) * 1000);
+                  return date.getFullYear() + "-" + ("0" + (date.getMonth() + 1)).substr(-2) + "-" + ("0" + date.getDate()).substr(-2);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          master_item:
+            key: "certcheck.sh[{SNI},{$SSL_PORT}]"
+          tags:
+            - tag: Application
+              value: "SSL certificate"
+        - uuid: e99ff9b35e2c41b78b6c9002b397eaa0
+          name: "SSL certificate validity"
+          type: EXTERNAL
+          key: "certcheck.sh[{SNI},{$SSL_PORT}]"
+          delay: "30"
+          history: 7d
+          trends: "0"
+          units: s
+          preprocessing:
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1h
+          tags:
+            - tag: Application
+              value: "SSL certificate"
+        - uuid: 9b9510497f9441d1859d0476ea67dc6a
+          name: "HTTPS Service is running"
+          type: SIMPLE
+          key: "net.tcp.service[https,{SNI},{$SSL_PORT}]"
+          delay: 5m
+          history: 7d
+          trends: 30d
+          status: DISABLED
+          valuemap:
+            name: "Service state"
+          tags:
+            - tag: Application
+              value: "SSL certificate"
+          triggers:
+            - uuid: 1b0fed2daa4d4216b46cc4b0974ff32f
+              expression: "last(/Template Basic SSL Cert Check External/net.tcp.service[https,{SNI},{$SSL_PORT}])=0"
+              name: "Service unreachable (HTTPS)"
+              status: DISABLED
+              priority: HIGH
+      macros:
+        - macro: "{$SNI}"
+          value: "{HOST.NAME}"
+          description: "Hostname Zabbix Macro"
+        - macro: "{$SNI_TIME_AVG}"
+          value: "1209600"
+          description: "Average Trigger"
+        - macro: "{$SNI_TIME_HIGH}"
+          value: "604800"
+          description: "High Trigger"
+        - macro: "{$SNI_TIME_WRN}"
+          value: "2419200"
+          description: "Information Trigger"
+        - macro: "{$SSL_PORT}"
+          value: "443"
+          description: "Default SSL port"
+      valuemaps:
+        - uuid: 94c0f71d88bb4be08adc69eb8308ff62
+          name: "Service state"
+          mappings:
+            - value: "0"
+              newvalue: Down
+            - value: "1"
+              newvalue: Up
+  triggers:
+    - uuid: 4167609c49de45e2a006fa74b0a38c23
+      expression: "last(/Template Basic SSL Cert Check External/certcheck.sh[{SNI},{$SSL_PORT}]) <=now() + {$SNI_TIME_HIGH} and last(/Template Basic SSL Cert Check External/certcheck.sh.date[{HOST.NAME},{$SSL_PORT}])<>0"
+      name: "Certificate expires in 7 days"
+      opdata: "{ITEM.LASTVALUE3}"
+      priority: HIGH
+      manual_close: "YES"
+      tags:
+        - tag: Application
+          value: Certificate
+    - uuid: 86c2431719564d308338cbb072582d09
+      expression: "last(/Template Basic SSL Cert Check External/certcheck.sh[{SNI},{$SSL_PORT}]) <=now() + {$SNI_TIME_AVG} and last(/Template Basic SSL Cert Check External/certcheck.sh.date[{HOST.NAME},{$SSL_PORT}])<>0"
+      name: "Certificate expires in 14 days"
+      opdata: "{ITEM.LASTVALUE3}"
+      priority: AVERAGE
+      manual_close: "YES"
+    - uuid: 253a079dfd614866a5f74f08fc846226
+      expression: "last(/Template Basic SSL Cert Check External/certcheck.sh[{SNI},{$SSL_PORT}]) <=now() + {$SNI_TIME_WRN} and last(/Template Basic SSL Cert Check External/certcheck.sh.date[{HOST.NAME},{$SSL_PORT}])<>0"
+      name: "Certificate expires in 28 days"
+      opdata: "{ITEM.LASTVALUE}"
+      priority: WARNING
+      manual_close: "YES"
