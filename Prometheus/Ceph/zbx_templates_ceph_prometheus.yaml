@@ -1,0 +1,585 @@
+zabbix_export:
+  version: '6.4'
+  template_groups:
+    -
+      uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    -
+      uuid: 2ffeb08aa5874f279fef7938ae95d94a
+      template: 'Ceph Prometheus Discovery'
+      name: 'Ceph Prometheus Discovery'
+      groups:
+        -
+          name: Templates
+      items:
+        -
+          uuid: b702575f592d4fb9a7184b54ee68337f
+          name: 'Ceph Cluster Size'
+          type: DEPENDENT
+          key: ceph.cluster.total
+          delay: '0'
+          history: 1d
+          units: B
+          preprocessing:
+            -
+              type: PROMETHEUS_PATTERN
+              parameters:
+                - ceph_cluster_total_bytes
+                - value
+                - ''
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: ceph.prometheus.data
+        -
+          uuid: 794f93c918da430ea1f56a17cf9d0dfc
+          name: 'Ceph Cluster Used'
+          type: DEPENDENT
+          key: ceph.cluster.total.used
+          delay: '0'
+          units: B
+          preprocessing:
+            -
+              type: PROMETHEUS_PATTERN
+              parameters:
+                - ceph_cluster_total_used_bytes
+                - value
+                - ''
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: ceph.prometheus.data
+        -
+          uuid: 25610ab2afdc402a914b5c41645126bf
+          name: 'Ceph Health Status'
+          type: DEPENDENT
+          key: ceph.health.status
+          delay: '0'
+          history: 365d
+          trends: '0'
+          preprocessing:
+            -
+              type: PROMETHEUS_PATTERN
+              parameters:
+                - ceph_health_status
+                - value
+                - ''
+            -
+              type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1m
+          master_item:
+            key: ceph.prometheus.data
+          triggers:
+            -
+              uuid: f9112ed6944b425ea08f96ad1a29cbe7
+              expression: 'last(/Ceph Prometheus Discovery/ceph.health.status)>1'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Ceph Prometheus Discovery/ceph.health.status,5m)<=1'
+              name: 'Ceph Health Critical'
+              priority: DISASTER
+              tags:
+                -
+                  tag: host
+                  value: '{HOST.NAME}'
+                -
+                  tag: Service
+                  value: Ceph
+            -
+              uuid: 8395afbdd73842e088917a04d1dc050a
+              expression: 'min(/Ceph Prometheus Discovery/ceph.health.status,2m)>0'
+              recovery_mode: RECOVERY_EXPRESSION
+              recovery_expression: 'max(/Ceph Prometheus Discovery/ceph.health.status,10m)=0'
+              name: 'Ceph Health Warn'
+              priority: AVERAGE
+              manual_close: 'YES'
+              dependencies:
+                -
+                  name: 'Ceph Health Critical'
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.health.status)>1'
+                  recovery_expression: 'max(/Ceph Prometheus Discovery/ceph.health.status,5m)<=1'
+              tags:
+                -
+                  tag: host
+                  value: '{HOST.NAME}'
+                -
+                  tag: Service
+                  value: Ceph
+        -
+          uuid: 02f6dffd78d1446598dc07fa1d6525f6
+          name: 'Prometheus Data'
+          type: HTTP_AGENT
+          key: ceph.prometheus.data
+          delay: '15'
+          history: '0'
+          trends: '0'
+          value_type: TEXT
+          url: '{$METRICS_URL}'
+      discovery_rules:
+        -
+          uuid: b59567d7848049eb833777753cccee83
+          name: 'Ceph Health Discovery'
+          type: DEPENDENT
+          key: ceph.health.discovery
+          delay: '0'
+          item_prototypes:
+            -
+              uuid: 53fb484008a94d02bd61d8e4995fa803
+              name: 'Ceph Health Detail {#NAME}'
+              type: DEPENDENT
+              key: 'ceph.health.detail[{#NAME}]'
+              delay: '0'
+              history: 14d
+              trends: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_health_detail{name="{#NAME}",severity="{#SEVERITY}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+              trigger_prototypes:
+                -
+                  uuid: 4a8072c33760486ea0c14914f9290f5b
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.health.detail[{#NAME}])<>0'
+                  name: 'Ceph Health State {#NAME} is not 0'
+                  priority: AVERAGE
+                  description: '{#DESC}'
+                  tags:
+                    -
+                      tag: host
+                      value: '{HOST.NAME}'
+                    -
+                      tag: Service
+                      value: Ceph
+          master_item:
+            key: ceph.prometheus.data
+          lld_macro_paths:
+            -
+              lld_macro: '{#DESC}'
+              path: $.help
+            -
+              lld_macro: '{#NAME}'
+              path: $.labels.name
+            -
+              lld_macro: '{#SEVERITY}'
+              path: $.labels.severity
+          preprocessing:
+            -
+              type: PROMETHEUS_TO_JSON
+              parameters:
+                - ceph_health_detail
+        -
+          uuid: 633f4d3539e840b6bb9e98931b665168
+          name: 'Ceph Pools Discovery'
+          type: DEPENDENT
+          key: ceph.pools.discovery
+          delay: '0'
+          item_prototypes:
+            -
+              uuid: d2bd4c51e3844df8b006f1e18a58e033
+              name: 'Ceph Pool {#NAME} Dirty'
+              type: DEPENDENT
+              key: 'ceph.pool.dirty[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_dirty{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 9ed4415f20f549be8c5c90b2bd315d05
+              name: 'Ceph Pool {#NAME} Max Available Space'
+              type: DEPENDENT
+              key: 'ceph.pool.max.avail[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_max_avail{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 2dd630172fd24e8683ef070b413160a0
+              name: 'Ceph Pool {#NAME} Objects'
+              type: DEPENDENT
+              key: 'ceph.pool.objects[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_objects{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 136a449e37ee4b259745e2a1e0b1a6f2
+              name: 'Ceph Pool {#NAME} PG Active'
+              type: DEPENDENT
+              key: 'ceph.pool.pg.active[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pg_active{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 5ab6b6029c684a05a5ac30bf52455983
+              name: 'Ceph Pool {#NAME} PG Clean'
+              type: DEPENDENT
+              key: 'ceph.pool.pg.clean[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pg_clean{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 87d12ec6815542e390392f092c299d9a
+              name: 'Ceph Pool {#NAME} PG Total'
+              type: DEPENDENT
+              key: 'ceph.pool.pg.total[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pg_total{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 5bfcb1f7e43b440a98870e206b38d94e
+              name: 'Ceph Pool {#NAME} Quota Bytes'
+              type: DEPENDENT
+              key: 'ceph.pool.quota.bytes[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_quota_bytes{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 8df53807542d448d9fc871db65249b1d
+              name: 'Ceph Pool {#NAME} Quota Objects'
+              type: DEPENDENT
+              key: 'ceph.pool.quota.objects[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_quota_objects{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 36294e06f577482885dc83f42dece658
+              name: 'Ceph Pool {#NAME} Raw Available Space'
+              type: DEPENDENT
+              key: 'ceph.pool.raw.avail[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_avail_raw{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 4462e1fc2e1544bba5cd70115fa1b7a3
+              name: 'Ceph Pool {#NAME} Read'
+              type: DEPENDENT
+              key: 'ceph.pool.read[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_rd_bytes{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: fc65f59426a24d06bd6a6a4a39067c46
+              name: 'Ceph Pool {#NAME} Recovered Bytes'
+              type: DEPENDENT
+              key: 'ceph.pool.recovery.bytes.num[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_num_bytes_recovered{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: a1e079f55b2a4f8a99ec0d44001468f3
+              name: 'Ceph Pool {#NAME} Recovering Keys per Second'
+              type: DEPENDENT
+              key: 'ceph.pool.recovery.keys.second[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_recovering_keys_per_sec{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: b5d3caff07ab45b481f711ffbb6ad092
+              name: 'Ceph Pool {#NAME} Recovered Objects'
+              type: DEPENDENT
+              key: 'ceph.pool.recovery.objects.num[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_num_objects_recovered{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 16958f933e904d8cafe02802460c79b2
+              name: 'Ceph Pool {#NAME} Recovering Objects per Second'
+              type: DEPENDENT
+              key: 'ceph.pool.recovery.objects.second[{#POOL}]'
+              delay: '0'
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_recovering_objects_per_sec{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: e101a9bcb2ce4b9b80d7de35b46621b2
+              name: 'Ceph Pool {#NAME} Stored Raw Space'
+              type: DEPENDENT
+              key: 'ceph.pool.stored.raw[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_stored_raw{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 8db235346d9d4556894565f306432730
+              name: 'Ceph Pool {#NAME} Stored Space'
+              type: DEPENDENT
+              key: 'ceph.pool.stored[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_stored{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+            -
+              uuid: 79a450cd4ca143dd9b9c64288fec230a
+              name: 'Ceph Pool {#NAME} Free Percent'
+              type: CALCULATED
+              key: 'ceph.pool.used.percent[{#POOL}]'
+              value_type: FLOAT
+              units: '%'
+              params: |
+                100-
+                (
+                    (
+                        last(//ceph.pool.stored[{#POOL}]) /
+                        (
+                            last(//ceph.pool.max.avail[{#POOL}]) +
+                            last(//ceph.pool.stored[{#POOL}])
+                        )
+                    ) * 100
+                )
+              trigger_prototypes:
+                -
+                  uuid: b3572466a543459ca7fe3c1c579974f9
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=6'
+                  name: 'Pool {#NAME} Litte Space Remaining'
+                  priority: DISASTER
+                  tags:
+                    -
+                      tag: host
+                      value: '{HOST.NAME}'
+                    -
+                      tag: Service
+                      value: Ceph
+                -
+                  uuid: f7588a8406f74634a11a5de40b807fa6
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=15'
+                  name: 'Pool {#NAME} Low Space Remaining'
+                  priority: AVERAGE
+                  dependencies:
+                    -
+                      name: 'Pool {#NAME} Very Low Space Remaining'
+                      expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=10'
+                  tags:
+                    -
+                      tag: host
+                      value: '{HOST.NAME}'
+                    -
+                      tag: Service
+                      value: Ceph
+                -
+                  uuid: afa2e2e3b0294bcf944fc03ee8dd9f5f
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=20'
+                  name: 'Pool {#NAME} Low Space Remaining'
+                  priority: WARNING
+                  dependencies:
+                    -
+                      name: 'Pool {#NAME} Low Space Remaining'
+                      expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=15'
+                  tags:
+                    -
+                      tag: host
+                      value: '{HOST.NAME}'
+                    -
+                      tag: Service
+                      value: Ceph
+                -
+                  uuid: 008c2b6fb22e42898eeaaf93b37a4c5c
+                  expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=10'
+                  name: 'Pool {#NAME} Very Low Space Remaining'
+                  priority: HIGH
+                  dependencies:
+                    -
+                      name: 'Pool {#NAME} Litte Space Remaining'
+                      expression: 'last(/Ceph Prometheus Discovery/ceph.pool.used.percent[{#POOL}])<=6'
+                  tags:
+                    -
+                      tag: host
+                      value: '{HOST.NAME}'
+                    -
+                      tag: Service
+                      value: Ceph
+            -
+              uuid: fa10509b785e41bebba16424e3465c6d
+              name: 'Ceph Pool {#NAME} Write'
+              type: DEPENDENT
+              key: 'ceph.pool.write[{#POOL}]'
+              delay: '0'
+              units: B
+              preprocessing:
+                -
+                  type: PROMETHEUS_PATTERN
+                  parameters:
+                    - 'ceph_pool_wr_bytes{pool_id="{#POOL}"}'
+                    - value
+                    - ''
+              master_item:
+                key: ceph.prometheus.data
+          master_item:
+            key: ceph.prometheus.data
+          lld_macro_paths:
+            -
+              lld_macro: '{#DESC}'
+              path: $.help
+            -
+              lld_macro: '{#NAME}'
+              path: $.labels.name
+            -
+              lld_macro: '{#POOL}'
+              path: $.labels.pool_id
+          preprocessing:
+            -
+              type: PROMETHEUS_TO_JSON
+              parameters:
+                - ceph_pool_metadata
+      macros:
+        -
+          macro: '{$METRICS_URL}'
+          value: 'http://server.local/metrics'
+  triggers:
+    -
+      uuid: 14a0c1662196469685191555a023306f
+      expression: 'last(/Ceph Prometheus Discovery/ceph.cluster.total.used) / last(/Ceph Prometheus Discovery/ceph.cluster.total) > 0.85'
+      name: 'Storage usage exceeds more than 85% of available capacity'
+      priority: WARNING
+      tags:
+        -
+          tag: host
+          value: '{HOST.NAME}'
+        -
+          tag: Service
+          value: Ceph
+  graphs:
+    -
+      uuid: 8dd02aed8e0045988a319e39740d9b61
+      name: 'Storage Usage'
+      width: '300'
+      height: '300'
+      yaxismax: '0'
+      show_work_period: 'NO'
+      show_triggers: 'NO'
+      type: PIE
+      graph_items:
+        -
+          color: FFFFFF
+          calc_fnc: LAST
+          type: GRAPH_SUM
+          item:
+            host: 'Ceph Prometheus Discovery'
+            key: ceph.cluster.total
+        -
+          sortorder: '1'
+          color: 2196F3
+          calc_fnc: LAST
+          item:
+            host: 'Ceph Prometheus Discovery'
+            key: ceph.cluster.total.used
