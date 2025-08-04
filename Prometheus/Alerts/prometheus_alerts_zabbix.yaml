@@ -1,0 +1,340 @@
+zabbix_export:
+  version: "6.4"
+  template_groups:
+    - uuid: 7039e6a9ad064936b5b4f0fce719ad87
+      name: Templates/Kubernetes
+  templates:
+    - uuid: ad4ead8c886749fca8ecc20677af3007
+      template: "Kubernetes Prometheus Alertmanager"
+      name: "Kubernetes Prometheus Alertmanager"
+      groups:
+        - name: Templates/Kubernetes
+      items:
+        - uuid: 8e130a600f934b18892386a60f2a6ecc
+          name: "Prometheus: Alerts"
+          type: HTTP_AGENT
+          key: prometheus.alerts
+          delay: "10"
+          history: "0"
+          trends: "0"
+          value_type: TEXT
+          url: "{$PROMETHEUS.URL}/api/v1/alerts"
+          query_fields:
+            - name: query
+              value: kubelet_volume_stats_available_bytes
+          tags:
+            - tag: component
+              value: alerts
+        - uuid: 0b6b41e1599d46129bc761921924479c
+          name: "Prometheus: Alerts listed"
+          type: DEPENDENT
+          key: prometheus.alerts.listed
+          delay: "0"
+          history: "0"
+          trends: "0"
+          value_type: TEXT
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+
+                  if (data.status != "success") {
+                  return null;
+                  }
+
+                  out = {};
+
+                  result = data.data.alerts;
+
+                  for (val = 0; val < result.length; val++) {
+                      const e = result[val];
+
+                      out[e.labels.alertname] = {
+                          name: e.labels.alertname,
+                          severity: e.labels.severity,
+                          summary: e.annotations.summary,
+                          description: e.annotations.description,
+                          runbook_url: e.annotations.runbook_url,
+                          state: e.state,
+                          time: e.activeAt,
+                          value: e.value,
+                      };
+                  }
+
+                  return JSON.stringify(out);
+          master_item:
+            key: prometheus.alerts
+          tags:
+            - tag: component
+              value: alerts
+        - uuid: 06e4e201cfe04871865c54795d014e73
+          name: "Prometheus: Alerts Status"
+          type: DEPENDENT
+          key: prometheus.alerts.state
+          delay: "0"
+          history: 7d
+          trends: "0"
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.status
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 6h
+          master_item:
+            key: prometheus.alerts
+          tags:
+            - tag: component
+              value: alerts
+          triggers:
+            - uuid: f6b95013423545c680bb206d58b437f8
+              expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state)<>"success"'
+              name: "Prometheus Alert Status not Success"
+              priority: DISASTER
+              tags:
+                - tag: component
+                  value: alerts
+        - uuid: b5afe48827924ce7ae045b32373688c1
+          name: "Prometheus: Watchdog Alert State"
+          type: DEPENDENT
+          key: prometheus.alerts.watchdog
+          delay: "0"
+          history: 7d
+          trends: "0"
+          value_type: TEXT
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.Watchdog.state
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - "150"
+          master_item:
+            key: prometheus.alerts.listed
+          tags:
+            - tag: alert
+              value: Watchdog
+            - tag: component
+              value: alerts
+          triggers:
+            - uuid: 9bfa3e92ce2842a2b4568dbe6381ecb7
+              expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog)<>"firing" or nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog,5m)=1'
+              name: "Prometheus Alert Watchdog not firing"
+              priority: DISASTER
+              dependencies:
+                - name: "Prometheus Alert Status not Success"
+                  expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state)<>"success"'
+              tags:
+                - tag: alert
+                  value: Watchdog
+                - tag: component
+                  value: alerts
+      discovery_rules:
+        - uuid: 8080a8d3c83a4e248b734deb5391eae1
+          name: "Prometheus Alerts discovery"
+          type: DEPENDENT
+          key: prometheus.alerts.discover
+          delay: "0"
+          filter:
+            conditions:
+              - macro: "{#NAME}"
+                value: Watchdog
+                operator: NOT_MATCHES_REGEX
+                formulaid: A
+          lifetime: "0"
+          item_prototypes:
+            - uuid: b2425dd6d7894afe97c03902551b1d55
+              name: "Prometheus: {#NAME} Alert Data"
+              type: DEPENDENT
+              key: "prometheus.alerts.data[{#NAME}]"
+              delay: "0"
+              history: 1d
+              trends: "0"
+              value_type: TEXT
+              description: |
+                {#SUMMARY}
+
+                {#DESCRIPTION}
+
+                {#RUNBOOKURL}
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - "$.{#NAME}"
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: prometheus.alerts.listed
+              tags:
+                - tag: alert
+                  value: "{#NAME}"
+                - tag: component
+                  value: alerts
+            - uuid: 0aed1970313d41798ad35ff16d9774dd
+              name: "Prometheus: {#NAME} Alert State"
+              type: DEPENDENT
+              key: "prometheus.alerts.state[{#NAME}]"
+              delay: "0"
+              trends: "0"
+              value_type: TEXT
+              description: |
+                {#SUMMARY}
+
+                {#DESCRIPTION}
+
+                {#RUNBOOKURL}
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.state
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: "prometheus.alerts.data[{#NAME}]"
+              tags:
+                - tag: alert
+                  value: "{#NAME}"
+                - tag: component
+                  value: alerts
+              trigger_prototypes:
+                - uuid: 6eab85631dc34252a48a1ce0ae260ce7
+                  expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
+                  name: "Prometheus Alert: {#NAME} firing"
+                  opdata: "firing since {#TIME}"
+                  priority: WARNING
+                  description: |
+                    {#SUMMARY}
+
+                    {#DESCRIPTION}
+                  dependencies:
+                    - name: "Prometheus Alert: {#NAME} firing"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="critical"'
+                      recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
+                    - name: "Prometheus Alert: {#NAME} firing"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="warning"'
+                      recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
+                    - name: "Prometheus Alert Status not Success"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state)<>"success"'
+                    - name: "Prometheus Alert Watchdog not firing"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog)<>"firing" or nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog,5m)=1'
+                  tags:
+                    - tag: alert
+                      value: "{#NAME}"
+                    - tag: component
+                      value: alerts
+                - uuid: 0533d2490bee4deeaf180900350629f6
+                  expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="critical"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
+                  name: "Prometheus Alert: {#NAME} firing"
+                  opdata: "firing since {#TIME}"
+                  priority: DISASTER
+                  description: |
+                    {#SUMMARY}
+
+                    {#DESCRIPTION}
+                  dependencies:
+                    - name: "Prometheus Alert Status not Success"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state)<>"success"'
+                    - name: "Prometheus Alert Watchdog not firing"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog)<>"firing" or nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog,5m)=1'
+                  tags:
+                    - tag: alert
+                      value: "{#NAME}"
+                    - tag: component
+                      value: alerts
+                - uuid: 734cc662abe64440a72b31f999ff5c59
+                  expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="warning"'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
+                  name: "Prometheus Alert: {#NAME} firing"
+                  opdata: "firing since {#TIME}"
+                  priority: AVERAGE
+                  description: |
+                    {#SUMMARY}
+
+                    {#DESCRIPTION}
+                  dependencies:
+                    - name: "Prometheus Alert Status not Success"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state)<>"success"'
+                    - name: "Prometheus Alert Watchdog not firing"
+                      expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog)<>"firing" or nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.watchdog,5m)=1'
+                  tags:
+                    - tag: alert
+                      value: "{#NAME}"
+                    - tag: component
+                      value: alerts
+            - uuid: 320fb170e1ce437aa46c6a98b30a1a64
+              name: "Prometheus: {#NAME} Alert time"
+              type: DEPENDENT
+              key: "prometheus.alerts.time[{#NAME}]"
+              delay: "0"
+              history: 7d
+              trends: "0"
+              value_type: TEXT
+              description: |
+                {#SUMMARY}
+
+                {#DESCRIPTION}
+
+                {#RUNBOOKURL}
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.time
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 1d
+              master_item:
+                key: "prometheus.alerts.data[{#NAME}]"
+              tags:
+                - tag: alert
+                  value: "{#NAME}"
+                - tag: component
+                  value: alerts
+          master_item:
+            key: prometheus.alerts.listed
+          lld_macro_paths:
+            - lld_macro: "{#DESCRIPTION}"
+              path: $.description
+            - lld_macro: "{#NAME}"
+              path: $.name
+            - lld_macro: "{#RUNBOOKURL}"
+              path: $.runbook_url
+            - lld_macro: "{#SEVERITY}"
+              path: $.severity
+            - lld_macro: "{#STATE}"
+              path: $.state
+            - lld_macro: "{#SUMMARY}"
+              path: $.summary
+            - lld_macro: "{#TIME}"
+              path: $.time
+            - lld_macro: "{#VALUE}"
+              path: $.value
+          preprocessing:
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value);
+
+                  out = []
+
+                  obj_keys = Object.keys(data);
+                  for (i = 0; i < obj_keys.length; i++) {
+                    key = obj_keys[i];
+                    value = data[key];
+                    out.push(value);
+                  }
+                  return JSON.stringify(out);
+            - type: DISCARD_UNCHANGED_HEARTBEAT
+              parameters:
+                - 1d
+      macros:
+        - macro: "{$PROMETHEUS.URL}"
+          value: "http://prometheus-server.prometheus.svc.cluster.local:80"
