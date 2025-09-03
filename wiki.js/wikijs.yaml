@@ -1,0 +1,222 @@
+zabbix_export:
+  version: '7.2'
+  template_groups:
+    - uuid: 7df96b18c230490a9a0a9e2307226338
+      name: Templates
+  templates:
+    - uuid: 70808015ad994508993a91553582473e
+      template: 'WikiJS via GraphQL'
+      name: 'WikiJS via GraphQL'
+      groups:
+        - name: Templates
+      items:
+        - uuid: eb1054632efb43cbb42152f037397455
+          name: 'WikiJS GraphQL Data'
+          type: HTTP_AGENT
+          key: wiki.graphql
+          history: '0'
+          value_type: TEXT
+          url: '{$WIKI.SCHEMA}://{HOST.NAME}/graphql'
+          status_codes: ''
+          post_type: JSON
+          posts: '{"query":"{\n  storage {\n    status {\n      title\n      lastAttempt\n      status\n      message\n      title\n      key\n    }\n  }\n  system {\n    info {\n      configFile\n      cpuCores\n      currentVersion\n      dbHost\n      dbType\n      dbVersion\n      groupsTotal\n      hostname\n      httpPort\n      httpRedirection\n      httpsPort\n      latestVersion\n      latestVersionReleaseDate\n      nodeVersion\n      operatingSystem\n      pagesTotal\n      platform\n      ramTotal\n      sslDomain\n      sslExpirationDate\n      sslProvider\n      sslStatus\n      sslSubscriberEmail\n      tagsTotal\n      telemetry\n      telemetryClientId\n      upgradeCapable\n      usersTotal\n      workingDirectory\n    }\n    exportStatus {\n      status\n      progress\n      message\n      startedAt\n    }\n  }\n  authentication {\n    apiKeys {\n      id\n      name\n      keyShort\n      expiration\n      createdAt\n      updatedAt\n      isRevoked\n    }\n  }\n}","variables":{}}'
+          headers:
+            - name: Authorization
+              value: 'Bearer {$WIKI.TOKEN}'
+            - name: Content-type
+              value: application/json
+          request_method: POST
+          tags:
+            - tag: Application
+              value: WikiJS
+        - uuid: 51c3816c33614ea59b8ee2ace21c8924
+          name: 'WikiJS API Error State'
+          type: DEPENDENT
+          key: wiki.graphql.error
+          trends: '0'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.errors
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '0'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  data = JSON.parse(value)
+                  return data.length > 0 ? 1 : 0
+          master_item:
+            key: wiki.graphql
+          tags:
+            - tag: Application
+              value: WikiJS
+          triggers:
+            - uuid: b5e746497e144789ae652da9ecb182c7
+              expression: 'last(/WikiJS via GraphQL/wiki.graphql.error)<>0'
+              name: 'WikiJS API reported an error'
+              priority: HIGH
+              tags:
+                - tag: Application
+                  value: WikiJS
+      discovery_rules:
+        - uuid: 4f2b404c7f3941e5a4c269f261c37392
+          name: 'Storage Backends'
+          type: DEPENDENT
+          key: wikijs.graphql.storage
+          item_prototypes:
+            - uuid: 77381971a93340568098c5616bb25579
+              name: 'Status of {#TITLE} Storage Backend'
+              type: DEPENDENT
+              key: 'wikijs.graphql.storage.data[{#KEY}]'
+              value_type: TEXT
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return "{#STATUS}"'
+              master_item:
+                key: wiki.graphql
+              tags:
+                - tag: Application
+                  value: WikiJS
+                - tag: Backend
+                  value: '{#KEY}'
+                - tag: Type
+                  value: Storage
+              trigger_prototypes:
+                - uuid: 478619eec0c1446e968ab3df6ce99207
+                  expression: 'last(/WikiJS via GraphQL/wikijs.graphql.storage.data[{#KEY}])<>"operational"'
+                  name: 'Storage Backend {#TITLE} is not operational'
+                  priority: AVERAGE
+                  tags:
+                    - tag: Application
+                      value: WikiJS
+                    - tag: Backend
+                      value: '{#KEY}'
+                    - tag: Type
+                      value: Storage
+          master_item:
+            key: wiki.graphql
+          lld_macro_paths:
+            - lld_macro: '{#KEY}'
+              path: $.key
+            - lld_macro: '{#MESSAGE}'
+              path: $.message
+            - lld_macro: '{#STATUS}'
+              path: $.status
+            - lld_macro: '{#TITLE}'
+              path: $.title
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.storage.status
+        - uuid: 29b7b8dacd2e4af38c2c7937f6718acb
+          name: 'API Tokens'
+          type: DEPENDENT
+          key: wikijs.graphql.token
+          item_prototypes:
+            - uuid: 7c58f0ae686e49dfb663f4df2ea5f8c3
+              name: 'API Token {#NAME} Expiration Timestamp'
+              type: DEPENDENT
+              key: 'wikijs.graphql.token.expiry[{#ID}]'
+              trends: '0'
+              preprocessing:
+                - type: JAVASCRIPT
+                  parameters:
+                    - |
+                      const date = new Date("{#EXPIRATION}");
+                      const unixTimestamp = Math.floor(date.getTime() / 1000);
+                      return unixTimestamp;
+                - type: DISCARD_UNCHANGED_HEARTBEAT
+                  parameters:
+                    - 6h
+              master_item:
+                key: wiki.graphql
+              tags:
+                - tag: Application
+                  value: WikiJS
+                - tag: Token
+                  value: '{#NAME}'
+                - tag: Type
+                  value: 'API Token'
+              trigger_prototypes:
+                - uuid: 8ab530f2a77847c29976bb8d96623299
+                  expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_AVG}'
+                  name: 'API Token {#NAME} Expires soon'
+                  opdata: '{#EXPIRATION}'
+                  priority: AVERAGE
+                  dependencies:
+                    - name: 'API Token {#NAME} Expires soon'
+                      expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_HIGH}'
+                  tags:
+                    - tag: Application
+                      value: WikiJS
+                    - tag: Token
+                      value: '{#NAME}'
+                    - tag: Type
+                      value: 'API Token'
+                - uuid: c25e588da0bb40009397132a0a752f29
+                  expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_HIGH}'
+                  name: 'API Token {#NAME} Expires soon'
+                  opdata: '{#EXPIRATION}'
+                  priority: HIGH
+                  tags:
+                    - tag: Application
+                      value: WikiJS
+                    - tag: Token
+                      value: '{#NAME}'
+                    - tag: Type
+                      value: 'API Token'
+                - uuid: cd1a970064de4c609fba2ab28c30dc37
+                  expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_WARN}'
+                  name: 'API Token {#NAME} Expires soon'
+                  opdata: '{#EXPIRATION}'
+                  priority: WARNING
+                  dependencies:
+                    - name: 'API Token {#NAME} Expires soon'
+                      expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_AVG}'
+                    - name: 'API Token {#NAME} Expires soon'
+                      expression: 'last(/WikiJS via GraphQL/wikijs.graphql.token.expiry[{#ID}])<=now() + {$WIKI.EXPIRY_HIGH}'
+                  tags:
+                    - tag: Application
+                      value: WikiJS
+                    - tag: Token
+                      value: '{#NAME}'
+                    - tag: Type
+                      value: 'API Token'
+          master_item:
+            key: wiki.graphql
+          lld_macro_paths:
+            - lld_macro: '{#EXPIRATION}'
+              path: $.expiration
+            - lld_macro: '{#ID}'
+              path: $.id
+            - lld_macro: '{#NAME}'
+              path: $.name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.data.authentication.apiKeys
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  out = []
+                  data = JSON.parse(value)
+                  for (v in data) {
+                      if (!data[v].isRevoked) {
+                          out.push(data[v])
+                      }
+                  }
+                  return JSON.stringify(out)
+      macros:
+        - macro: '{$WIKI.EXPIRY_AVG}'
+          value: '604800'
+        - macro: '{$WIKI.EXPIRY_HIGH}'
+          value: '86400'
+        - macro: '{$WIKI.EXPIRY_WARN}'
+          value: '1209600'
+        - macro: '{$WIKI.GRAPHQL}'
+          value: 'https://{HOST.NAME}/graphql'
+        - macro: '{$WIKI.SCHEMA}'
+          value: https
+        - macro: '{$WIKI.TOKEN}'
+          value: API_TOKEN
