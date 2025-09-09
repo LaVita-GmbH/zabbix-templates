@@ -1,5 +1,5 @@
 zabbix_export:
-  version: "6.4"
+  version: "7.2"
   template_groups:
     - uuid: 7039e6a9ad064936b5b4f0fce719ad87
       name: Templates/Kubernetes
@@ -16,7 +16,6 @@ zabbix_export:
           key: prometheus.alerts
           delay: "10"
           history: "0"
-          trends: "0"
           value_type: TEXT
           url: "{$PROMETHEUS.URL}/api/v1/alerts"
           query_fields:
@@ -29,9 +28,7 @@ zabbix_export:
           name: "Prometheus: Alerts listed"
           type: DEPENDENT
           key: prometheus.alerts.listed
-          delay: "0"
           history: "0"
-          trends: "0"
           value_type: TEXT
           preprocessing:
             - type: JAVASCRIPT
@@ -72,9 +69,7 @@ zabbix_export:
           name: "Prometheus: Alerts Status"
           type: DEPENDENT
           key: prometheus.alerts.state
-          delay: "0"
           history: 7d
-          trends: "0"
           value_type: TEXT
           preprocessing:
             - type: JSONPATH
@@ -100,9 +95,7 @@ zabbix_export:
           name: "Prometheus: Watchdog Alert State"
           type: DEPENDENT
           key: prometheus.alerts.watchdog
-          delay: "0"
           history: 7d
-          trends: "0"
           value_type: TEXT
           preprocessing:
             - type: JSONPATH
@@ -136,22 +129,18 @@ zabbix_export:
           name: "Prometheus Alerts discovery"
           type: DEPENDENT
           key: prometheus.alerts.discover
-          delay: "0"
           filter:
             conditions:
               - macro: "{#NAME}"
                 value: Watchdog
                 operator: NOT_MATCHES_REGEX
-                formulaid: A
-          lifetime: "0"
+          lifetime_type: DELETE_IMMEDIATELY
           item_prototypes:
             - uuid: b2425dd6d7894afe97c03902551b1d55
               name: "Prometheus: {#NAME} Alert Data"
               type: DEPENDENT
               key: "prometheus.alerts.data[{#NAME}]"
-              delay: "0"
               history: 1d
-              trends: "0"
               value_type: TEXT
               description: |
                 {#SUMMARY}
@@ -163,6 +152,7 @@ zabbix_export:
                 - type: JSONPATH
                   parameters:
                     - "$.{#NAME}"
+                  error_handler: DISCARD_VALUE
                 - type: DISCARD_UNCHANGED_HEARTBEAT
                   parameters:
                     - 1d
@@ -177,8 +167,6 @@ zabbix_export:
               name: "Prometheus: {#NAME} Alert State"
               type: DEPENDENT
               key: "prometheus.alerts.state[{#NAME}]"
-              delay: "0"
-              trends: "0"
               value_type: TEXT
               description: |
                 {#SUMMARY}
@@ -205,7 +193,7 @@ zabbix_export:
                   expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing"'
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
-                  name: "Prometheus Alert: {#NAME} firing"
+                  name: "Alert {#NAME} firing"
                   opdata: "firing since {#TIME}"
                   priority: WARNING
                   description: |
@@ -213,10 +201,10 @@ zabbix_export:
 
                     {#DESCRIPTION}
                   dependencies:
-                    - name: "Prometheus Alert: {#NAME} firing"
+                    - name: "Alert {#NAME} firing"
                       expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="critical"'
                       recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
-                    - name: "Prometheus Alert: {#NAME} firing"
+                    - name: "Alert {#NAME} firing"
                       expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="warning"'
                       recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
                     - name: "Prometheus Alert Status not Success"
@@ -232,7 +220,7 @@ zabbix_export:
                   expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="critical"'
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
-                  name: "Prometheus Alert: {#NAME} firing"
+                  name: "Alert {#NAME} firing"
                   opdata: "firing since {#TIME}"
                   priority: DISASTER
                   description: |
@@ -253,7 +241,7 @@ zabbix_export:
                   expression: 'last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])="firing" and {#SEVERITY}="warning"'
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: 'nodata(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}],30)=1 or last(/Kubernetes Prometheus Alertmanager/prometheus.alerts.state[{#NAME}])<>"firing"'
-                  name: "Prometheus Alert: {#NAME} firing"
+                  name: "Alert {#NAME} firing"
                   opdata: "firing since {#TIME}"
                   priority: AVERAGE
                   description: |
@@ -274,9 +262,7 @@ zabbix_export:
               name: "Prometheus: {#NAME} Alert time"
               type: DEPENDENT
               key: "prometheus.alerts.time[{#NAME}]"
-              delay: "0"
               history: 7d
-              trends: "0"
               value_type: TEXT
               description: |
                 {#SUMMARY}
